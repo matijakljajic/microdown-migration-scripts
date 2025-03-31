@@ -59,8 +59,8 @@ main() {
     exit 1
   fi
 
-  # Normalize carriage returns
-  tr -d '\r' < "$input_file" > "${input_file}.tmp" && mv "${input_file}.tmp" "$input_file"
+  # Normalize carriage returns for Unix
+  sed 's/\r/\n/g' "$input_file" > "${input_file}.tmp" && mv "${input_file}.tmp" "$input_file"
 
   # Extract metadata and append Microdown
   title=$(extract_and_quote 1 "title")
