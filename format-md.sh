@@ -48,9 +48,14 @@ format_html_tags() {
     
     # If there is remaining content after the last tag, print it
     if ($0 != "") print $0
-  }' "$1" > "${1}.tmp" && mv "${1}.tmp" "$1"
-  
-  echo "HTML formatting completed for $1"
+  }' "$1" > "${1}.tmp"
+
+  if ! cmp -s "$1" "${1}.tmp"; then
+    mv "${1}.tmp" "$1"
+    echo "HTML formatting completed for $1"
+  else
+    rm "${1}.tmp"
+  fi
 }
 
 process_folder() {
