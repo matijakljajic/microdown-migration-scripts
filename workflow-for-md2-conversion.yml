@@ -1,0 +1,100 @@
+# ===========================================================================
+# WORKFLOW TEMPLATE FOR MD TO MD2 CONVERSION
+# ===========================================================================
+# This is a workflow for converting markdown (.md) files to microdown (.md2) format
+# using the microdown-migration-scripts.
+#
+# HOW TO USE:
+# 1. Copy this file to your target repository under .github/workflows/
+# 2. Rename it to something like process-markdown.yml
+# 3. Configure the MONITORED_SUBFOLDERS environment variable as needed (default is root)
+#
+# STEPS:
+# 1. Checkout repository code
+# 2. Fetch microdown-migration-scripts (from matijakljajic/microdown-migration-scripts)
+# 3. Set scripts as executable
+# 4. Validate commit history (for git diff to work properly)
+# 5. Process and format Markdown files (also removes old .md files)
+# 6. Clean up migration scripts
+# 7. Save changes to repository
+#
+# Author: matijakljajic
+# ===========================================================================
+
+name: Convert .md to .md2
+
+on:
+  push:
+    paths:
+      - '**.md'
+
+env:
+  # Configure this variable to specify which directories to process
+  # Use "." for root directory or comma-separated list like "docs,content,."
+  MONITORED_SUBFOLDERS: "."  
+
+permissions:
+  contents: write
+
+jobs:
+  convert-markdown:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+          
+      - name: Fetch microdown-migration-scripts
+        uses: actions/checkout@v3
+        with:
+          repository: matijakljajic/microdown-migration-scripts
+          path: .microdown-migration-scripts
+          
+      - name: Set scripts as executable
+        run: |
+          chmod +x ./.microdown-migration-scripts/convert-md.sh
+          chmod +x ./.microdown-migration-scripts/process-md.sh
+          chmod +x ./.microdown-migration-scripts/format-md.sh
+          
+      - name: Validate commit history
+        run: |
+          if ! git rev-parse HEAD^ >/dev/null 2>&1; then
+            echo "Error: Unable to find the parent of HEAD. This might be due to an initial commit or shallow clone."
+            exit 1
+          fi
+          
+      - name: Process and format Markdown files
+        run: |
+          git diff --name-only HEAD^ HEAD | grep '\.md$' | while IFS= read -r file; do
+            echo "Processing file: $file"
+            
+            if ! ./.microdown-migration-scripts/process-md.sh "$file"; then
+              echo "Error: Failed to process $file"
+              exit 1
+            fi
+            
+            if ! ./.microdown-migration-scripts/format-md.sh "${file%.md}.md2"; then
+              echo "Error: Failed to format $file"
+              exit 1
+            fi
+            
+            echo "Removing original .md file: $file"
+            rm "$file"
+          done
+      
+      - name: Clean up Microdown migration scripts
+        run: rm -rf .microdown-migration-scripts
+      
+      - name: Save changes to repository
+        run: |
+          git config --local user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+          git config --local user.name "${GITHUB_ACTOR}"
+          git add -A
+          
+          if ! git diff --staged --quiet; then
+            original_message=$(git log -1 --pretty=%B)
+            git commit -m "${original_message} [w/ .md to .md2]"
+            git push
+          fi
